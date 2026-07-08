@@ -1,6 +1,7 @@
 package openapi
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -501,4 +502,299 @@ func Test_SchemaOf_OpenAPITagWithComma(t *testing.T) {
 	status := requireProp(t, props, "status")
 	require.Equal(t, "Status, including a comma", status["description"])
 	require.Equal(t, []any{"active", "inactive"}, status["enum"])
+}
+
+// Test_SchemaOf_EmbeddedFieldDoesNotShadowParent verifies that a field declared
+// on the parent struct wins over a promoted embedded field of the same name,
+// matching encoding/json semantics, and that required entries are not
+// duplicated.
+func Test_SchemaOf_EmbeddedFieldDoesNotShadowParent(t *testing.T) {
+	t.Parallel()
+
+	type Inner struct {
+		ID   string `json:"id"`
+		Note string `json:"note"`
+	}
+	type Outer struct { //nolint:govet // fieldalignment: the embedded struct must follow the parent field to exercise shadowing
+		ID int `json:"id"`
+		Inner
+	}
+
+	schema := SchemaOf(Outer{})
+	props := requireProps(t, schema)
+
+	// The parent's int field shadows the embedded string field regardless of
+	// declaration order.
+	id := requireProp(t, props, "id")
+	require.Equal(t, "integer", id[schemaKeyType])
+	require.Contains(t, props, "note")
+
+	required, ok := schema["required"].([]string)
+	require.True(t, ok)
+	require.ElementsMatch(t, []string{"id", "note"}, required)
+}
+
+// Test_SchemaOf_StringOption verifies the json ",string" option is reflected
+// as a string type, matching encoding/json's wire format.
+func Test_SchemaOf_StringOption(t *testing.T) {
+	t.Parallel()
+
+	type User struct {
+		Name   string  `json:"name"`
+		ID     int64   `json:"id,string"`
+		Score  float64 `json:"score,string"`
+		Active bool    `json:"active,string"`
+	}
+
+	schema := SchemaOf(User{})
+	props := requireProps(t, schema)
+	require.Equal(t, "string", requireProp(t, props, "id")[schemaKeyType])
+	require.Equal(t, "string", requireProp(t, props, "score")[schemaKeyType])
+	require.Equal(t, "string", requireProp(t, props, "active")[schemaKeyType])
+	require.Equal(t, "string", requireProp(t, props, "name")[schemaKeyType])
+}
+
+// Test_SchemaOf_ConflictingEmbeddedFieldsDropped verifies a field promoted by
+// two embedded structs at the same depth is dropped entirely, matching
+// encoding/json's ambiguity rule.
+func Test_SchemaOf_ConflictingEmbeddedFieldsDropped(t *testing.T) {
+	t.Parallel()
+
+	type B1 struct {
+		X int `json:"x"`
+	}
+	type B2 struct {
+		X string `json:"x"`
+	}
+	type T struct { //nolint:govet // fieldalignment: embed order mirrors the documented scenario
+		Y string `json:"y"`
+		B1
+		B2 //nolint:govet // structtag: the duplicate json tag is the ambiguity under test
+	}
+
+	schema := SchemaOf(T{})
+	props := requireProps(t, schema)
+	require.NotContains(t, props, "x")
+	require.Contains(t, props, "y")
+
+	required, ok := schema["required"].([]string)
+	require.True(t, ok)
+	require.Equal(t, []string{"y"}, required)
+}
+
+// Test_SchemaOf_EmbeddedRequiredDeterministic verifies the required list
+// derived from embedded structs is stable across invocations.
+func Test_SchemaOf_EmbeddedRequiredDeterministic(t *testing.T) {
+	t.Parallel()
+
+	type Base struct {
+		A string `json:"a"`
+		B string `json:"b"`
+		C string `json:"c"`
+		D string `json:"d"`
+		E string `json:"e"`
+	}
+	type T struct {
+		Base
+	}
+
+	first, ok := SchemaOf(T{})["required"].([]string)
+	require.True(t, ok)
+	require.Equal(t, []string{"a", "b", "c", "d", "e"}, first)
+	for range 10 {
+		next, ok := SchemaOf(T{})["required"].([]string)
+		require.True(t, ok)
+		require.Equal(t, first, next)
+	}
+}
+
+// Test_SchemaOf_DepthResolvedEmbeddedField verifies a field promoted at a
+// shallower embedding depth wins over the same name at a deeper depth,
+// matching encoding/json.
+func Test_SchemaOf_DepthResolvedEmbeddedField(t *testing.T) {
+	t.Parallel()
+
+	type A struct {
+		X int `json:"x"`
+	}
+	type B struct {
+		A
+		Y int `json:"y"`
+	}
+	type P struct {
+		A
+		B
+	}
+
+	schema := SchemaOf(P{})
+	props := requireProps(t, schema)
+	// json.Marshal(P{}) emits both x (from the shallower A) and y.
+	require.Contains(t, props, "x")
+	require.Contains(t, props, "y")
+}
+
+// Test_SchemaOf_TaggedFieldWinsConflict verifies that among same-depth
+// candidates a single json-tagged field dominates, matching encoding/json.
+func Test_SchemaOf_TaggedFieldWinsConflict(t *testing.T) {
+	t.Parallel()
+
+	type E1 struct {
+		Val int `json:"v"`
+	}
+	type E2 struct {
+		V string // untagged, json name "V" — no conflict with tagged "v"
+	}
+	type E3 struct {
+		V bool `json:"v"` // no json tag name collision helper
+	}
+	type P1 struct {
+		E1
+		E3 //nolint:govet // structtag: the duplicate json tag is the ambiguity under test
+	}
+
+	// Two tagged candidates at the same depth: dropped.
+	props := requireProps(t, SchemaOf(P1{}))
+	require.NotContains(t, props, "v")
+
+	type P2 struct { //nolint:govet // fieldalignment: embed order mirrors the documented scenario
+		E1
+		E2
+	}
+	// Tagged "v" and untagged "V" differ in name, both survive.
+	props = requireProps(t, SchemaOf(P2{}))
+	require.Contains(t, props, "v")
+	require.Contains(t, props, "V")
+}
+
+// unexportedBase is embedded in Test_SchemaOf_UnexportedEmbeddedStruct; its
+// exported fields are promoted by encoding/json.
+type unexportedBase struct {
+	ID int `json:"id"`
+}
+
+// Test_SchemaOf_UnexportedEmbeddedStruct verifies exported fields of an
+// embedded unexported struct type are promoted, matching encoding/json.
+func Test_SchemaOf_UnexportedEmbeddedStruct(t *testing.T) {
+	t.Parallel()
+
+	type User struct { //nolint:govet // fieldalignment: embed order mirrors the documented scenario
+		unexportedBase
+		Name string `json:"name"`
+	}
+
+	schema := SchemaOf(User{})
+	props := requireProps(t, schema)
+	require.Contains(t, props, "id")
+	require.Contains(t, props, "name")
+
+	required, ok := schema["required"].([]string)
+	require.True(t, ok)
+	require.ElementsMatch(t, []string{"id", "name"}, required)
+}
+
+// Test_SchemaOf_DiamondEmbeddingDropsAmbiguous verifies a field reached twice
+// at the same depth through different embeds of the same type is dropped,
+// matching encoding/json's ambiguity rule.
+func Test_SchemaOf_DiamondEmbeddingDropsAmbiguous(t *testing.T) {
+	t.Parallel()
+
+	type D struct {
+		X int `json:"x"`
+	}
+	type B struct {
+		D
+	}
+	type C struct {
+		D
+	}
+	type P struct {
+		B
+		C     //nolint:govet // structtag: the duplicate json tag is the ambiguity under test
+		Y int `json:"y"`
+	}
+
+	props := requireProps(t, SchemaOf(P{}))
+	require.NotContains(t, props, "x")
+	require.Contains(t, props, "y")
+}
+
+// Test_SchemaOf_TypedEnumValues verifies enum directive values are converted
+// to the field's type.
+func Test_SchemaOf_TypedEnumValues(t *testing.T) {
+	t.Parallel()
+
+	type Config struct {
+		Mode   string  `json:"mode" openapi:"enum:on|off"`
+		Level  int     `json:"level" openapi:"enum:1|2|3"`
+		Rate   float64 `json:"rate" openapi:"enum:0.5|1.0"`
+		Active bool    `json:"active" openapi:"enum:true|false"`
+	}
+
+	props := requireProps(t, SchemaOf(Config{}))
+	require.Equal(t, []any{int64(1), int64(2), int64(3)}, requireProp(t, props, "level")["enum"])
+	require.Equal(t, []any{0.5, 1.0}, requireProp(t, props, "rate")["enum"])
+	require.Equal(t, []any{true, false}, requireProp(t, props, "active")["enum"])
+	require.Equal(t, []any{"on", "off"}, requireProp(t, props, "mode")["enum"])
+}
+
+type customMarshaler struct {
+	Hidden int `json:"hidden"`
+}
+
+func (customMarshaler) MarshalJSON() ([]byte, error) { return []byte(`"custom"`), nil }
+
+type textID struct {
+	Raw int `json:"raw"`
+}
+
+func (textID) MarshalText() ([]byte, error) { return []byte("id"), nil }
+
+// Test_SchemaOf_CustomMarshalers verifies types with custom JSON or text
+// marshaling are not documented via field reflection, since encoding/json
+// bypasses the fields entirely.
+func Test_SchemaOf_CustomMarshalers(t *testing.T) {
+	t.Parallel()
+
+	// A json.Marshaler's output is unknowable: accept any value.
+	require.Empty(t, SchemaOf(customMarshaler{}))
+
+	// A TextMarshaler always produces a string.
+	require.Equal(t, map[string]any{schemaKeyType: schemaTypeString}, SchemaOf(textID{}))
+
+	// A struct embedding time.Time promotes its MarshalJSON, so the whole
+	// struct marshals as a date-time string, not an object.
+	type Payload struct {
+		time.Time
+		N int `json:"n"`
+	}
+	require.Empty(t, SchemaOf(Payload{}))
+
+	// The same applies when such a struct appears as a field.
+	type Wrapper struct {
+		Stamp customMarshaler `json:"stamp"`
+	}
+	props := requireProps(t, SchemaOf(Wrapper{}))
+	require.Empty(t, requireProp(t, props, "stamp"))
+}
+
+type ptrTextID struct {
+	V int `json:"v"`
+}
+
+func (*ptrTextID) MarshalText() ([]byte, error) { return []byte("id"), nil }
+
+// Test_SchemaOf_JSONNumberAndPtrTextMarshaler verifies json.Number is
+// documented as a number and pointer-receiver-only text marshalers as
+// accepting any value (their wire shape depends on addressability).
+func Test_SchemaOf_JSONNumberAndPtrTextMarshaler(t *testing.T) {
+	t.Parallel()
+
+	type Payload struct {
+		N json.Number `json:"n"`
+		P ptrTextID   `json:"p"`
+	}
+
+	props := requireProps(t, SchemaOf(Payload{}))
+	require.Equal(t, map[string]any{schemaKeyType: schemaTypeNumber}, requireProp(t, props, "n"))
+	require.Empty(t, requireProp(t, props, "p"))
 }

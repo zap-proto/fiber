@@ -2891,3 +2891,222 @@ func Test_Route_URL(t *testing.T) {
 		require.Equal(t, "/api/v1/users/user123/posts/post456/comments", url)
 	})
 }
+
+// Test_App_MetadataUseDoesNotClobberConcreteRoutes verifies documentation
+// helpers chained on a Use() registration only touch the middleware entries,
+// never concrete routes sharing the same path.
+func Test_App_MetadataUseDoesNotClobberConcreteRoutes(t *testing.T) {
+	t.Parallel()
+	app := New()
+	app.Get("/api", testEmptyHandler).Summary("Real endpoint")
+	app.Use("/api", func(c Ctx) error { return c.Next() }).Summary("middleware").Hidden()
+
+	route := app.stack[app.methodInt(MethodGet)][0]
+	require.False(t, route.use)
+	require.Equal(t, "Real endpoint", route.Summary)
+	require.False(t, route.IsHidden())
+}
+
+// Test_App_MetadataDoesNotClobberExplicitHead verifies documentation helpers
+// chained on a GET registration do not overwrite an explicitly registered HEAD
+// route at the same path.
+func Test_App_MetadataDoesNotClobberExplicitHead(t *testing.T) {
+	t.Parallel()
+	app := New()
+	app.Head("/file", testEmptyHandler).Summary("Probe")
+	app.Get("/file", testEmptyHandler).Summary("Download")
+
+	headRoute := app.stack[app.methodInt(MethodHead)][0]
+	require.Equal(t, "Probe", headRoute.Summary)
+
+	getRoute := app.stack[app.methodInt(MethodGet)][0]
+	require.Equal(t, "Download", getRoute.Summary)
+}
+
+// Test_App_ResponseKeepsHeadersAndLinks verifies a Response call merges with
+// headers and links documented earlier for the same status code.
+func Test_App_ResponseKeepsHeadersAndLinks(t *testing.T) {
+	t.Parallel()
+	app := New()
+	app.Get("/", testEmptyHandler).
+		ResponseHeader(StatusOK, "X-RateLimit", "requests remaining", nil).
+		ResponseLink(StatusOK, "next", map[string]any{"operationId": "getNext"}).
+		Response(StatusOK, "OK", MIMEApplicationJSON)
+
+	route := app.stack[app.methodInt(MethodGet)][0]
+	resp, ok := route.Responses["200"]
+	require.True(t, ok)
+	require.Equal(t, "OK", resp.Description)
+	require.Equal(t, []string{MIMEApplicationJSON}, resp.MediaTypes)
+	require.Contains(t, resp.Headers, "X-RateLimit")
+	require.Contains(t, resp.Links, "next")
+}
+
+// Test_App_ResponseKeepsExplicitProduces verifies Response only adopts its
+// media type as Produces when the user has not set one explicitly.
+func Test_App_ResponseKeepsExplicitProduces(t *testing.T) {
+	t.Parallel()
+	app := New()
+	app.Get("/", testEmptyHandler).
+		Produces(MIMEApplicationJSON).
+		Response(StatusOK, "OK", "text/csv")
+
+	route := app.stack[app.methodInt(MethodGet)][0]
+	//nolint:testifylint // MIMEApplicationJSON is a plain string, JSONEq not required
+	require.Equal(t, MIMEApplicationJSON, route.Produces)
+
+	app2 := New()
+	app2.Get("/", testEmptyHandler).Response(StatusOK, "OK", "text/csv")
+	route2 := app2.stack[app2.methodInt(MethodGet)][0]
+	require.Equal(t, "text/csv", route2.Produces)
+}
+
+// Test_App_RequestBodyKeepsExplicitConsumes verifies RequestBody only adopts
+// its media type as Consumes when the user has not set one explicitly.
+func Test_App_RequestBodyKeepsExplicitConsumes(t *testing.T) {
+	t.Parallel()
+	app := New()
+	app.Post("/", testEmptyHandler).
+		Consumes(MIMEApplicationJSON).
+		RequestBody("payload", true, MIMEApplicationXML)
+
+	route := app.stack[app.methodInt(MethodPost)][0]
+	//nolint:testifylint // MIMEApplicationJSON is a plain string, JSONEq not required
+	require.Equal(t, MIMEApplicationJSON, route.Consumes)
+}
+
+// Test_App_MetadataDoesNotClobberShadowedRoute verifies helpers chained on a
+// duplicate registration do not rewrite the earlier registration's metadata.
+func Test_App_MetadataDoesNotClobberShadowedRoute(t *testing.T) {
+	t.Parallel()
+	app := New()
+	app.Get("/a", testEmptyHandler).Summary("first")
+	app.Get("/b", testEmptyHandler)
+	app.Get("/a", testEmptyHandler).Summary("second")
+
+	getStack := app.stack[app.methodInt(MethodGet)]
+	require.Equal(t, "first", getStack[0].Summary)
+	require.Equal(t, "second", getStack[2].Summary)
+}
+
+// Test_App_MetadataSecondUseDoesNotClobberFirst verifies documenting a second
+// Use() registration leaves the first registration's metadata alone.
+func Test_App_MetadataSecondUseDoesNotClobberFirst(t *testing.T) {
+	t.Parallel()
+	app := New()
+	app.Use("/api", func(c Ctx) error { return c.Next() }).Summary("auth")
+	app.Get("/api/x", testEmptyHandler)
+	app.Use("/api", func(c Ctx) error { return c.Next() }).Summary("rate")
+
+	summaries := make(map[string]int)
+	for _, route := range app.stack[app.methodInt(MethodGet)] {
+		if route.use {
+			summaries[route.Summary]++
+		}
+	}
+	require.Equal(t, 1, summaries["auth"])
+	require.Equal(t, 1, summaries["rate"])
+}
+
+// Test_App_MetadataAfterMountDoesNotTouchPreviousRoute verifies helpers chained
+// onto a sub-app mount do not mutate the route registered before the mount.
+func Test_App_MetadataAfterMountDoesNotTouchPreviousRoute(t *testing.T) {
+	t.Parallel()
+	sub := New()
+	sub.Get("/users", testEmptyHandler)
+
+	app := New()
+	app.Get("/health", testEmptyHandler).Summary("Health")
+	app.Use("/api", sub).Tags("api").Description("sub-app")
+
+	for _, route := range app.stack[app.methodInt(MethodGet)] {
+		if route.Path == "/health" {
+			require.Equal(t, "Health", route.Summary)
+			require.Empty(t, route.Tags)
+			require.Empty(t, route.Description)
+		}
+	}
+}
+
+// Test_App_NameOnUseDoesNotRenameConcreteRoutes verifies naming a Use()
+// registration no longer renames concrete routes sharing the path.
+func Test_App_NameOnUseDoesNotRenameConcreteRoutes(t *testing.T) {
+	t.Parallel()
+	app := New()
+	app.Get("/", testEmptyHandler).Name("home")
+	app.Use(func(c Ctx) error { return c.Next() }).Name("mymw")
+
+	for _, route := range app.stack[app.methodInt(MethodGet)] {
+		if !route.use {
+			require.Equal(t, "home", route.Name)
+		} else {
+			require.Equal(t, "mymw", route.Name)
+		}
+	}
+}
+
+// Test_App_OperationExtensionNilElements verifies deep-copying metadata with
+// nil elements in typed slices and maps neither panics nor drops entries.
+func Test_App_OperationExtensionNilElements(t *testing.T) {
+	t.Parallel()
+	app := New()
+	require.NotPanics(t, func() {
+		app.Get("/", testEmptyHandler).OperationExtension(map[string]any{
+			"x-errs": []error{nil},
+			"x-map":  map[string]error{"e": nil},
+		})
+	})
+
+	route := app.stack[app.methodInt(MethodGet)][0]
+	errs, ok := route.OperationExtensions["x-errs"].([]error)
+	require.True(t, ok)
+	require.Len(t, errs, 1)
+	m, ok := route.OperationExtensions["x-map"].(map[string]error)
+	require.True(t, ok)
+	require.Contains(t, m, "e")
+}
+
+// Test_App_MetadataNoCollisionWithMountedRoutes verifies registration IDs of
+// expanded mount routes can never collide with parent registrations, so
+// documenting a route added after startup cannot touch mounted routes.
+func Test_App_MetadataNoCollisionWithMountedRoutes(t *testing.T) {
+	t.Parallel()
+	sub := New()
+	sub.Get("/a", testEmptyHandler)
+	sub.Get("/b", testEmptyHandler).Summary("sub b")
+
+	app := New()
+	app.Use("/api", sub)
+
+	// Trigger startup so the mount expands into the parent stack.
+	resp, err := app.Test(httptest.NewRequest(MethodGet, "/api/a", http.NoBody))
+	require.NoError(t, err)
+	require.Equal(t, StatusOK, resp.StatusCode)
+
+	app.Get("/new", testEmptyHandler).Name("newname").Summary("new summary")
+
+	for _, routes := range app.stack {
+		for _, route := range routes {
+			if route.Path == "/api/b" {
+				require.Equal(t, "sub b", route.Summary, route.Method)
+				require.NotEqual(t, "newname", route.Name, route.Method)
+			}
+		}
+	}
+}
+
+// Test_App_MetadataReachesAllMethodsOfAdd verifies helpers chained on a
+// multi-method Add registration document every method's route.
+func Test_App_MetadataReachesAllMethodsOfAdd(t *testing.T) {
+	t.Parallel()
+	app := New()
+	app.Add([]string{MethodPut, MethodPost}, "/x", testEmptyHandler).
+		Summary("upsert").
+		Response(StatusCreated, "created", MIMEApplicationJSON)
+
+	for _, method := range []string{MethodPut, MethodPost} {
+		route := app.stack[app.methodInt(method)][0]
+		require.Equal(t, "upsert", route.Summary, method)
+		require.Contains(t, route.Responses, "201", method)
+	}
+}

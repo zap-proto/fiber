@@ -1,7 +1,8 @@
 package openapi
 
 import (
-	"maps"
+	"encoding"
+	"encoding/json"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -25,6 +26,8 @@ import (
 //   - Structs → {"type": "object", "properties": {...}, "required": [...]}
 //   - Pointers → schema of the pointed-to type (nullable fields are not required)
 //   - interface{}/any → {} (accepts any value)
+//   - Types implementing json.Marshaler → {} (custom output cannot be predicted)
+//   - Types implementing encoding.TextMarshaler → {"type": "string"}
 //
 // Embedded structs and embedded pointers to structs are flattened into the
 // parent object (matching encoding/json). Self-referential or mutually
@@ -69,7 +72,19 @@ func SchemaOf(v any) map[string]any {
 	return typeSchema(t, nil)
 }
 
-var timeType = reflect.TypeFor[time.Time]()
+var (
+	timeType          = reflect.TypeFor[time.Time]()
+	jsonNumberType    = reflect.TypeFor[json.Number]()
+	jsonMarshalerType = reflect.TypeFor[json.Marshaler]()
+	textMarshalerType = reflect.TypeFor[encoding.TextMarshaler]()
+)
+
+// implementsMarshaler reports whether t (or *t) implements the given
+// marshaler interface, in which case encoding/json bypasses ordinary field
+// reflection for values of that type.
+func implementsMarshaler(t, iface reflect.Type) bool {
+	return t.Implements(iface) || reflect.PointerTo(t).Implements(iface)
+}
 
 // typeSchema builds the schema for a single type. visited tracks the struct
 // types currently on the recursion stack so that cyclic types terminate.
@@ -82,16 +97,37 @@ func typeSchema(t reflect.Type, visited map[reflect.Type]bool) map[string]any {
 		return map[string]any{schemaKeyType: schemaTypeString, schemaKeyFormat: "date-time"}
 	}
 
+	// json.Number is a string kind but marshals as a bare JSON number.
+	if t == jsonNumberType {
+		return map[string]any{schemaKeyType: schemaTypeNumber}
+	}
+
+	// Types with custom JSON marshaling (including structs that promote a
+	// MarshalJSON from an embedded type, e.g. time.Time) produce output that
+	// field reflection cannot predict, so accept any value.
+	if implementsMarshaler(t, jsonMarshalerType) {
+		return map[string]any{}
+	}
+	// A value-receiver text marshaler always produces a string. When only *T
+	// implements it, encoding/json cannot call the method on non-addressable
+	// values and falls back to plain reflection, so the shape is unknowable.
+	if t.Implements(textMarshalerType) {
+		return map[string]any{schemaKeyType: schemaTypeString}
+	}
+	if reflect.PointerTo(t).Implements(textMarshalerType) {
+		return map[string]any{}
+	}
+
 	switch t.Kind() {
 	case reflect.String:
 		return map[string]any{schemaKeyType: schemaTypeString}
 	case reflect.Bool:
-		return map[string]any{schemaKeyType: "boolean"}
+		return map[string]any{schemaKeyType: schemaTypeBoolean}
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return map[string]any{schemaKeyType: "integer"}
+		return map[string]any{schemaKeyType: schemaTypeInteger}
 	case reflect.Float32, reflect.Float64:
-		return map[string]any{schemaKeyType: "number"}
+		return map[string]any{schemaKeyType: schemaTypeNumber}
 	case reflect.Slice, reflect.Array:
 		// Go marshals []byte (a slice of uint8) as a base64-encoded string.
 		// Fixed-size byte arrays are still marshaled as arrays of numbers.
@@ -139,56 +175,141 @@ func structSchema(t reflect.Type, visited map[reflect.Type]bool) map[string]any 
 	properties := make(map[string]any)
 	var required []string
 
-	for i := range t.NumField() {
-		field := t.Field(i)
-		if !field.IsExported() {
-			continue
-		}
+	// Fields are resolved level by level over the embedding tree, matching
+	// encoding/json: a name is taken at the shallowest depth where it appears;
+	// among candidates at that depth exactly one json-tagged field wins,
+	// otherwise the name is ambiguous and dropped entirely (deeper fields do
+	// not resurrect it).
+	type fieldCandidate struct {
+		schema   map[string]any
+		required bool
+		tagged   bool
+	}
+	type embedRef struct {
+		t reflect.Type
+		// optional marks fields reached through a pointer embed or an
+		// omitempty embed: they are not guaranteed to be present and must not
+		// be marked required on the parent.
+		optional bool
+	}
 
-		name, omit, skip := parseJSONTag(&field)
-		if skip {
-			continue
-		}
+	level := []embedRef{{t: t}}
+	// expanded tracks struct types flattened at shallower levels: re-expanding
+	// them deeper could recurse forever (embedding cycles) and their fields
+	// would lose to the shallower ones anyway. Same-level duplicates are NOT
+	// deduplicated — their fields must collide and be dropped like
+	// encoding/json does.
+	expanded := map[reflect.Type]bool{t: true}
+	dropped := make(map[string]bool)
 
-		// Flatten embedded structs and embedded pointers to structs, the way
-		// encoding/json promotes their fields into the parent object.
-		embeddedType := field.Type
-		for embeddedType.Kind() == reflect.Pointer {
-			embeddedType = embeddedType.Elem()
-		}
-		if field.Anonymous && embeddedType.Kind() == reflect.Struct && embeddedType != timeType && name == "" {
-			embedded := structSchema(embeddedType, visited)
-			if props, ok := embedded["properties"].(map[string]any); ok {
-				maps.Copy(properties, props)
+	for len(level) > 0 {
+		var nextLevel []embedRef
+		candidates := make(map[string][]fieldCandidate)
+		var order []string
+
+		for _, ref := range level {
+			for i := range ref.t.NumField() {
+				field := ref.t.Field(i)
+
+				tagInfo := parseJSONTag(&field)
+				if tagInfo.skip {
+					continue
+				}
+				name := tagInfo.name
+
+				embeddedType := field.Type
+				for embeddedType.Kind() == reflect.Pointer {
+					embeddedType = embeddedType.Elem()
+				}
+				isEmbeddedStruct := field.Anonymous && embeddedType.Kind() == reflect.Struct && embeddedType != timeType && name == ""
+
+				// encoding/json ignores unexported fields, but it still
+				// promotes the exported fields of an embedded unexported
+				// struct type.
+				if !field.IsExported() && !isEmbeddedStruct {
+					continue
+				}
+
+				if isEmbeddedStruct {
+					if expanded[embeddedType] {
+						continue
+					}
+					nextLevel = append(nextLevel, embedRef{
+						t:        embeddedType,
+						optional: ref.optional || tagInfo.omit || field.Type.Kind() == reflect.Pointer,
+					})
+					continue
+				}
+
+				if name == "" {
+					name = field.Name
+				}
+
+				fieldSchema := typeSchema(field.Type, visited)
+				if fieldSchema == nil {
+					// The field type has no JSON representation; skip it
+					// entirely rather than emitting a meaningless empty schema.
+					continue
+				}
+
+				// The ",string" option makes encoding/json wrap the value in a
+				// JSON string, so the documented type must be string as well.
+				if tagInfo.asString {
+					switch fieldSchema[schemaKeyType] {
+					case schemaTypeInteger, schemaTypeNumber, schemaTypeBoolean:
+						fieldSchema[schemaKeyType] = schemaTypeString
+					default:
+					}
+				}
+
+				applyOpenAPITag(&field, fieldSchema)
+
+				if _, ok := candidates[name]; !ok {
+					order = append(order, name)
+				}
+				candidates[name] = append(candidates[name], fieldCandidate{
+					schema:   fieldSchema,
+					required: !tagInfo.omit && field.Type.Kind() != reflect.Pointer && !ref.optional,
+					tagged:   tagInfo.name != "",
+				})
 			}
-			// An embedded pointer can be nil, so its fields are not guaranteed
-			// to be present and must not be marked required on the parent.
-			isPtrEmbed := field.Type.Kind() == reflect.Pointer
-			if reqs, ok := embedded["required"].([]string); ok && !omit && !isPtrEmbed {
-				required = append(required, reqs...)
+		}
+
+		for _, name := range order {
+			if dropped[name] {
+				continue
 			}
-			continue
+			if _, exists := properties[name]; exists {
+				continue
+			}
+			cands := candidates[name]
+			chosen := 0
+			if len(cands) > 1 {
+				// Exactly one json-tagged candidate dominates; otherwise the
+				// name is ambiguous at this depth and dropped for good.
+				taggedIdx, taggedCount := -1, 0
+				for i := range cands {
+					if cands[i].tagged {
+						taggedIdx = i
+						taggedCount++
+					}
+				}
+				if taggedCount != 1 {
+					dropped[name] = true
+					continue
+				}
+				chosen = taggedIdx
+			}
+			properties[name] = cands[chosen].schema
+			if cands[chosen].required {
+				required = append(required, name)
+			}
 		}
 
-		if name == "" {
-			name = field.Name
+		for _, ref := range nextLevel {
+			expanded[ref.t] = true
 		}
-
-		fieldSchema := typeSchema(field.Type, visited)
-		if fieldSchema == nil {
-			// The field type has no JSON representation; skip it entirely
-			// rather than emitting a meaningless empty schema.
-			continue
-		}
-
-		applyOpenAPITag(&field, fieldSchema)
-
-		properties[name] = fieldSchema
-
-		isPointer := field.Type.Kind() == reflect.Pointer
-		if !omit && !isPointer {
-			required = append(required, name)
-		}
+		level = nextLevel
 	}
 
 	schema := map[string]any{
@@ -201,16 +322,34 @@ func structSchema(t reflect.Type, visited map[reflect.Type]bool) map[string]any 
 	return schema
 }
 
-func parseJSONTag(field *reflect.StructField) (string, bool, bool) { //nolint:gocritic // nonamedreturns forbids naming these
+// jsonTagInfo carries the parsed pieces of a field's json tag.
+type jsonTagInfo struct {
+	name     string
+	omit     bool
+	skip     bool
+	asString bool
+}
+
+func parseJSONTag(field *reflect.StructField) jsonTagInfo {
 	tag := field.Tag.Get("json")
 	if tag == "" {
-		return "", false, false
+		return jsonTagInfo{}
 	}
 	if tag == "-" {
-		return "", false, true
+		return jsonTagInfo{skip: true}
 	}
-	parts := strings.SplitN(tag, ",", 2)
-	return parts[0], len(parts) > 1 && strings.Contains(parts[1], "omitempty"), false
+	parts := strings.Split(tag, ",")
+	info := jsonTagInfo{name: parts[0]}
+	for _, opt := range parts[1:] {
+		switch opt {
+		case "omitempty":
+			info.omit = true
+		case "string":
+			info.asString = true
+		default:
+		}
+	}
+	return info
 }
 
 // openapiDirectiveRe locates the start of each recognized openapi tag directive.
@@ -246,7 +385,9 @@ func applyOpenAPITag(field *reflect.StructField, schema map[string]any) {
 			values := strings.Split(val, "|")
 			enumSlice := make([]any, len(values))
 			for j, v := range values {
-				enumSlice[j] = utils.TrimSpace(v)
+				// Convert each value to the field's type so an integer field
+				// does not end up with a string-only enum no value can satisfy.
+				enumSlice[j] = inferExampleValue(utils.TrimSpace(v), schema)
 			}
 			schema["enum"] = enumSlice
 		default:
@@ -261,15 +402,15 @@ func inferExampleValue(val string, schema map[string]any) any {
 		return val
 	}
 	switch schemaType {
-	case "integer":
+	case schemaTypeInteger:
 		if n, err := utils.ParseInt(val); err == nil {
 			return n
 		}
-	case "number":
+	case schemaTypeNumber:
 		if f, err := utils.ParseFloat64(val); err == nil {
 			return f
 		}
-	case "boolean":
+	case schemaTypeBoolean:
 		if b, err := strconv.ParseBool(val); err == nil {
 			return b
 		}

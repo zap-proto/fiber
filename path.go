@@ -164,22 +164,6 @@ var (
 	}
 )
 
-func appendLowerBytes(dst, src []byte) []byte {
-	dst = dst[:0]
-	if cap(dst) < len(src) {
-		dst = make([]byte, len(src))
-	} else {
-		dst = dst[:len(src)]
-	}
-	for i, c := range src {
-		if 'A' <= c && c <= 'Z' {
-			c += 'a' - 'A'
-		}
-		dst[i] = c
-	}
-	return dst
-}
-
 // RoutePatternMatch reports whether path matches the provided Fiber route pattern.
 //
 // Patterns use the same syntax as routes registered on an App, including
@@ -536,9 +520,10 @@ func (parser *routeParser) getMatch(detectionPath, path string, params *[maxPara
 			i = segment.Length
 			// is optional part or the const part must match with the given string
 			// check if the end of the segment is an optional slash
+			// the unsigned compare proves 0 <= i <= len(detectionPath), keeping detectionPath[:i] bounds-check free
 			if segment.HasOptionalSlash && partLen == i-1 && detectionPath == segment.Const[:i-1] {
 				i--
-			} else if i > partLen || detectionPath[:i] != segment.Const {
+			} else if uint(i) > uint(len(detectionPath)) || detectionPath[:i] != segment.Const {
 				return false
 			}
 		} else {

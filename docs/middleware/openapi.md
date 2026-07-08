@@ -41,7 +41,8 @@ The middleware inspects the app's routes and generates the spec on the first
 matching request. The spec is cached, but the cache is automatically invalidated
 whenever the route table changes — routes added or removed, or route
 documentation metadata mutated — so changes after the first request are still
-reflected without a restart.
+reflected without a restart. Requests to other paths pass through without
+generation work.
 
 ### Document metadata
 
@@ -314,6 +315,15 @@ schemes: security device-authorization flow and `oauth2MetadataUrl`, XML
   `connect` operation.
 - The documentation helpers are also available on `RouteChain` chains:
   `app.RouteChain("/users").Get(handler).Summary("List users")`.
+- The specification always describes the whole application the middleware runs
+  in. When the middleware is registered inside a mounted sub-app, the routes are
+  expanded into the parent application at startup, so the generated document
+  covers the parent's full route set — use `Config.Next` to scope it if needed.
+- Spec generation takes a deep snapshot of the route table under the router
+  lock, so serving the spec concurrently with route registration or the
+  documentation helpers is safe. Runtime route mutation itself (e.g.
+  `RemoveRoute` while serving traffic) remains subject to the router's own
+  `RebuildTree` thread-safety caveats.
 
 ## Config
 
