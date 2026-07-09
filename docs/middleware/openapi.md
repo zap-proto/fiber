@@ -308,13 +308,32 @@ schemes: security device-authorization flow and `oauth2MetadataUrl`, XML
   (`_2`, `_3`, …) so the document stays valid.
 - Path parameters whose sanitized names collide are also suffixed (`_2`, `_3`, …)
   so parameter names stay unique per path.
+- Routes with several optional parameters (e.g. `/files/:dir?/:name?`) emit one
+  templated path per hierarchy level (`/files`, `/files/{dir}`,
+  `/files/{dir}/{name}`): the router always binds the first parameter, and the
+  OpenAPI specification forbids templated paths that differ only in parameter
+  names.
 - `GET` and `HEAD` operations never emit a `requestBody`, even if `Consumes` or
   `RequestBody` is set, because those methods do not carry a request body. The
   same applies to `TRACE`, which must not include content per RFC 9110.
 - `CONNECT` routes are ignored because the OpenAPI specification does not define a
   `connect` operation.
 - The documentation helpers are also available on `RouteChain` chains:
-  `app.RouteChain("/users").Get(handler).Summary("List users")`.
+  `app.RouteChain("/users").Get(handler).Summary("List users")`. Helpers on a
+  `Group`, `RouteChain`, or `Domain` router document that router's own most
+  recent registration, even when other routes were registered on the app in
+  the meantime; before the first registration through such a router its
+  helpers are no-ops.
+- Documentation helpers chained onto a sub-app mount
+  (`app.Use("/api", subApp).Summary(...)`) are no-ops: mount placeholders are
+  replaced by the sub-app's own routes at startup, so document the sub-app's
+  routes instead.
+- Registering the same method and path twice in a row merges the handlers into
+  one route entry; its documentation (including `Name`) belongs to the latest
+  registration. Routes registered on different domains never merge — each
+  keeps its own handlers and documentation, and when two domains share a path
+  the generated document (which has no host dimension) describes the
+  first-registered one.
 - The specification always describes the whole application the middleware runs
   in. When the middleware is registered inside a mounted sub-app, the routes are
   expanded into the parent application at startup, so the generated document
