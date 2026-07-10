@@ -3,7 +3,7 @@ package limiter
 import (
 	"errors"
 
-	"github.com/gofiber/fiber/v3"
+	"github.com/zap-proto/fiber/v3"
 )
 
 const (

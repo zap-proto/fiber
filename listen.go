@@ -25,7 +25,7 @@ import (
 	"github.com/mattn/go-isatty"
 	"golang.org/x/crypto/acme/autocert"
 
-	"github.com/gofiber/fiber/v3/log"
+	"github.com/zap-proto/fiber/v3/log"
 )
 
 // Figlet text to show Fiber ASCII art on startup message
@@ -511,8 +511,8 @@ func printStartupEntries(out io.Writer, colors *Colors, entries []startupMessage
 // printRoutesMessage print all routes with method, path, name and handlers
 // in a format of table, like this:
 // method | path | name      | handlers
-// GET    | /    | routeName | github.com/gofiber/fiber/v3.emptyHandler
-// HEAD   | /    |           | github.com/gofiber/fiber/v3.emptyHandler
+// GET    | /    | routeName | github.com/zap-proto/fiber/v3.emptyHandler
+// HEAD   | /    |           | github.com/zap-proto/fiber/v3.emptyHandler
 func (app *App) printRoutesMessage() {
 	// ignore child processes
 	if IsChild() {

@@ -1,7 +1,7 @@
 package healthcheck
 
 import (
-	"github.com/gofiber/fiber/v3"
+	"github.com/zap-proto/fiber/v3"
 )
 
 // ResponseFormat defines the format of the healthcheck response.

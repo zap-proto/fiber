@@ -3,9 +3,9 @@ package session
 import (
 	"time"
 
-	"github.com/gofiber/fiber/v3"
-	"github.com/gofiber/fiber/v3/extractors"
-	"github.com/gofiber/fiber/v3/log"
+	"github.com/zap-proto/fiber/v3"
+	"github.com/zap-proto/fiber/v3/extractors"
+	"github.com/zap-proto/fiber/v3/log"
 	"github.com/gofiber/utils/v2"
 )
 

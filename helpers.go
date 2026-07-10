@@ -25,7 +25,7 @@ import (
 	"github.com/gofiber/utils/v2"
 	utilsbytes "github.com/gofiber/utils/v2/bytes"
 
-	"github.com/gofiber/fiber/v3/log"
+	"github.com/zap-proto/fiber/v3/log"
 
 	"github.com/valyala/bytebufferpool"
 	"github.com/valyala/fasthttp"

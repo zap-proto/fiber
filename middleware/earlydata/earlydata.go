@@ -1,7 +1,7 @@
 package earlydata
 
 import (
-	"github.com/gofiber/fiber/v3"
+	"github.com/zap-proto/fiber/v3"
 )
 
 // The contextKey type is unexported to prevent collisions with context keys defined in

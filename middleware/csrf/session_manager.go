@@ -3,9 +3,9 @@ package csrf
 import (
 	"time"
 
-	"github.com/gofiber/fiber/v3"
-	"github.com/gofiber/fiber/v3/log"
-	"github.com/gofiber/fiber/v3/middleware/session"
+	"github.com/zap-proto/fiber/v3"
+	"github.com/zap-proto/fiber/v3/log"
+	"github.com/zap-proto/fiber/v3/middleware/session"
 )
 
 type sessionManager struct {

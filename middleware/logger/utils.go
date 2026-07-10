@@ -3,8 +3,8 @@ package logger
 import (
 	"io"
 
-	"github.com/gofiber/fiber/v3"
-	fiberlog "github.com/gofiber/fiber/v3/log"
+	"github.com/zap-proto/fiber/v3"
+	fiberlog "github.com/zap-proto/fiber/v3/log"
 	"github.com/gofiber/utils/v2"
 )
 

@@ -29,8 +29,8 @@ import (
 	"github.com/gofiber/utils/v2"
 	"github.com/valyala/fasthttp"
 
-	"github.com/gofiber/fiber/v3/binder"
-	"github.com/gofiber/fiber/v3/log"
+	"github.com/zap-proto/fiber/v3/binder"
+	"github.com/zap-proto/fiber/v3/log"
 )
 
 // Version of current fiber package

@@ -13,8 +13,8 @@ import (
 
 	"github.com/valyala/fasthttp"
 
-	"github.com/gofiber/fiber/v3"
-	"github.com/gofiber/fiber/v3/addon/retry"
+	"github.com/zap-proto/fiber/v3"
+	"github.com/zap-proto/fiber/v3/addon/retry"
 )
 
 const boundary = "FiberFormBoundary"

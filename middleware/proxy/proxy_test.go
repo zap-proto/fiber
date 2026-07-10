@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gofiber/fiber/v3"
-	clientpkg "github.com/gofiber/fiber/v3/client"
+	"github.com/zap-proto/fiber/v3"
+	clientpkg "github.com/zap-proto/fiber/v3/client"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gofiber/fiber/v3/internal/tlstest"
+	"github.com/zap-proto/fiber/v3/internal/tlstest"
 	"github.com/valyala/fasthttp"
 )
 

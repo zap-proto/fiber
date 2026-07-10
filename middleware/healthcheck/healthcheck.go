@@ -1,7 +1,7 @@
 package healthcheck
 
 import (
-	"github.com/gofiber/fiber/v3"
+	"github.com/zap-proto/fiber/v3"
 )
 
 // healthResponse represents the JSON/XML/MsgPack/CBOR response structure.

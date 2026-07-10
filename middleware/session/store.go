@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gofiber/fiber/v3"
-	"github.com/gofiber/fiber/v3/internal/storage/memory"
-	"github.com/gofiber/fiber/v3/log"
+	"github.com/zap-proto/fiber/v3"
+	"github.com/zap-proto/fiber/v3/internal/storage/memory"
+	"github.com/zap-proto/fiber/v3/log"
 )
 
 // ErrEmptySessionID is an error that occurs when the session ID is empty.

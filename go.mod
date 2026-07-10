@@ -1,4 +1,4 @@
-module github.com/gofiber/fiber/v3
+module github.com/zap-proto/fiber/v3
 
 go 1.25.0
 

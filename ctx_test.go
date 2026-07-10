@@ -39,7 +39,7 @@ import (
 	"github.com/valyala/bytebufferpool"
 	"github.com/valyala/fasthttp"
 
-	"github.com/gofiber/fiber/v3/internal/storage/memory"
+	"github.com/zap-proto/fiber/v3/internal/storage/memory"
 )
 
 const epsilon = 0.001

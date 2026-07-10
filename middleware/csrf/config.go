@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gofiber/fiber/v3"
-	"github.com/gofiber/fiber/v3/extractors"
-	"github.com/gofiber/fiber/v3/log"
-	"github.com/gofiber/fiber/v3/middleware/session"
+	"github.com/zap-proto/fiber/v3"
+	"github.com/zap-proto/fiber/v3/extractors"
+	"github.com/zap-proto/fiber/v3/log"
+	"github.com/zap-proto/fiber/v3/middleware/session"
 	"github.com/gofiber/utils/v2"
 )
 
@@ -77,7 +77,7 @@ type Config struct {
 	//
 	// Optional. Default: extractors.FromHeader("X-Csrf-Token")
 	//
-	// Available extractors from github.com/gofiber/fiber/v3/extractors:
+	// Available extractors from github.com/zap-proto/fiber/v3/extractors:
 	//   - extractors.FromHeader("X-Csrf-Token"): Most secure, recommended for APIs
 	//   - extractors.FromForm("_csrf"): Secure, recommended for form submissions
 	//   - extractors.FromQuery("csrf_token"): Less secure, URLs may be logged

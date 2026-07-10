@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gofiber/fiber/v3"
-	"github.com/gofiber/fiber/v3/middleware/etag"
+	"github.com/zap-proto/fiber/v3"
+	"github.com/zap-proto/fiber/v3/middleware/etag"
 	"github.com/stretchr/testify/require"
 	"github.com/valyala/fasthttp"
 )

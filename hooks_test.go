@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/valyala/bytebufferpool"
 
-	"github.com/gofiber/fiber/v3/log"
+	"github.com/zap-proto/fiber/v3/log"
 )
 
 const testMountPath = "/api"

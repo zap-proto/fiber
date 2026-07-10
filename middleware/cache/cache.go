@@ -21,7 +21,7 @@ import (
 	utilsstrings "github.com/gofiber/utils/v2/strings"
 	"github.com/valyala/fasthttp"
 
-	"github.com/gofiber/fiber/v3"
+	"github.com/zap-proto/fiber/v3"
 )
 
 // timestampUpdatePeriod is the period which is used to check the cache expiration.

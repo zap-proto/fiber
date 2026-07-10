@@ -11,12 +11,12 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gofiber/fiber/v3/internal/tlstest"
+	"github.com/zap-proto/fiber/v3/internal/tlstest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gofiber/fiber/v3"
+	"github.com/zap-proto/fiber/v3"
 )
 
 func Test_Response_Status(t *testing.T) {
