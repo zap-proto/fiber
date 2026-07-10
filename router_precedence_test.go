@@ -176,6 +176,21 @@ func Test_Precedence_RuntimeAddedRouteSorted(t *testing.T) {
 	require.Equal(t, "wildcard", hitBody(t, app, MethodGet, "/v1/iam/tokens"))
 }
 
+// Constraint-disambiguated params at the same position (e.g. :id<int> vs a
+// plain :slug) match disjoint value sets, so they are NOT an ambiguous conflict
+// and must not panic. They keep registration order, matching upstream fiber's
+// constraint routing.
+func Test_Precedence_ConstrainedParamNoPanic(t *testing.T) {
+	t.Parallel()
+	app := New()
+	require.NotPanics(t, func() {
+		app.Get("/order/:id<int>", func(c Ctx) error { return c.SendString("int") })
+		app.Get("/order/:slug", func(c Ctx) error { return c.SendString("slug") })
+	})
+	require.Equal(t, "int", hitBody(t, app, MethodGet, "/order/42"))
+	require.Equal(t, "slug", hitBody(t, app, MethodGet, "/order/abc"))
+}
+
 // A route whose first segment is dynamic (`:x`) has no static 3-char prefix, so
 // App.buildTree copies it into EVERY prefix bucket. This verifies that sorted
 // insertion still orders it correctly against static-prefixed routes inside the

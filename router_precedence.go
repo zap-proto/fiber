@@ -92,6 +92,19 @@ func compareRoutes(a, b *Route) int {
 	return 0
 }
 
+// paramConstrained reports whether the route has any parameter segment carrying
+// a user constraint (e.g. :id<int>). Two constrained params at the same position
+// can match disjoint value sets, so they are not treated as an ambiguous
+// conflict.
+func paramConstrained(r *Route) bool {
+	for _, s := range r.routeParser.segs {
+		if s.IsParam && len(s.Constraints) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // sortedInsertIndex returns the index in stack at which route should be inserted
 // so the stack stays most-specific-first within route's middleware context.
 //
@@ -147,8 +160,12 @@ func (app *App) insertRouteSorted(m int, route *Route) {
 			existing.Handlers = append(existing.Handlers, route.Handlers...)
 			return
 		}
-		if compareRoutes(route, existing) == 0 {
-			// Distinct patterns, equal specificity: ambiguous overlap.
+		if compareRoutes(route, existing) == 0 && !paramConstrained(route) && !paramConstrained(existing) {
+			// Distinct patterns, equal specificity, unconstrained: ambiguous
+			// overlap. Constrained params (e.g. :id<int>) can be mutually
+			// exclusive, so they are exempt — they fall through to sorted
+			// insertion and keep registration order, matching upstream fiber's
+			// constraint-routing behavior.
 			panic(fmt.Sprintf(
 				"fiber: route conflict: %s %s conflicts with %s %s (equal specificity, ambiguous match)",
 				route.Method, route.Path, existing.Method, existing.Path,
