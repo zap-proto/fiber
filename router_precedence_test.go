@@ -176,6 +176,24 @@ func Test_Precedence_RuntimeAddedRouteSorted(t *testing.T) {
 	require.Equal(t, "wildcard", hitBody(t, app, MethodGet, "/v1/iam/tokens"))
 }
 
+// A route whose first segment is dynamic (`:x`) has no static 3-char prefix, so
+// App.buildTree copies it into EVERY prefix bucket. This verifies that sorted
+// insertion still orders it correctly against static-prefixed routes inside the
+// bucket the matcher actually walks — i.e. the tree fast-path honors specificity
+// because each bucket is a sub-sequence of the sorted stack.
+func Test_Precedence_DynamicFirstSegmentBucketing(t *testing.T) {
+	t.Parallel()
+	app := New()
+	// Registered general-first; the dynamic-first-segment route lands in all buckets.
+	app.Get("/:seg/foo", func(c Ctx) error { return c.SendString("param-first") })
+	app.Get("/v1/foo", func(c Ctx) error { return c.SendString("static-first") })
+	// Force a tree rebuild to exercise the bucketed fast-path explicitly.
+	app.RebuildTree()
+
+	require.Equal(t, "static-first", hitBody(t, app, MethodGet, "/v1/foo"))
+	require.Equal(t, "param-first", hitBody(t, app, MethodGet, "/other/foo"))
+}
+
 // compareRoutes unit coverage for the ordering rules.
 func Test_Precedence_CompareRoutes(t *testing.T) {
 	t.Parallel()
