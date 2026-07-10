@@ -1,3 +1,18 @@
+<!--
+  zap-proto/fiber — a fork of gofiber/fiber v3 (module github.com/zap-proto/fiber/v3).
+  Adds specificity-based route precedence natively in the router: the most
+  specific pattern wins independent of registration order (Go 1.22 ServeMux
+  semantics), and ambiguous equal-specificity conflicts panic at registration.
+  Licensed under MIT, same as upstream (see LICENSE). Tracks gofiber/fiber v3.
+-->
+
+> **Fork notice** — This is `zap-proto/fiber`, a fork of
+> [`gofiber/fiber`](https://github.com/gofiber/fiber) **v3** (module
+> `github.com/zap-proto/fiber/v3`). It adds **specificity-based route
+> precedence** in the router — the most specific pattern wins regardless of
+> registration order — and panics on ambiguous equal-specificity route
+> conflicts. Everything else tracks upstream; MIT licensed like upstream.
+
 <h1 align="center">
   <a href="https://gofiber.io">
     <picture>

@@ -711,16 +711,30 @@ func (app *App) addRoute(method string, route *Route) {
 		app.pruneAutoHeadRouteLocked(route.path)
 	}
 
-	// prevent identically route registration
-	l := len(app.stack[m])
-	if l > 0 && app.stack[m][l-1].Path == route.Path && route.use == app.stack[m][l-1].use && !route.mount && !app.stack[m][l-1].mount {
-		preRoute := app.stack[m][l-1]
-		preRoute.Handlers = append(preRoute.Handlers, route.Handlers...)
+	route.Method = method
+
+	if route.use || route.mount {
+		// Middleware (use) and mounted routes keep declaration order and act as
+		// precedence barriers; they are never sorted. Preserve fiber's handler
+		// merge for consecutive identical middleware prefixes (the "use
+		// expansion" case, e.g. app.Use(a) then app.Use(b) on the same prefix).
+		// Mounted sub-app placeholders (route.mount) must never merge — they are
+		// expanded in place by processMount.
+		l := len(app.stack[m])
+		if route.use && !route.mount && l > 0 && app.stack[m][l-1].Path == route.Path && app.stack[m][l-1].use && !app.stack[m][l-1].mount {
+			preRoute := app.stack[m][l-1]
+			preRoute.Handlers = append(preRoute.Handlers, route.Handlers...)
+		} else {
+			// Add route to the stack
+			app.stack[m] = append(app.stack[m], route)
+			app.routesRefreshed = true
+		}
 	} else {
-		route.Method = method
-		// Add route to the stack
-		app.stack[m] = append(app.stack[m], route)
-		app.routesRefreshed = true
+		// Endpoint routes are inserted in most-specific-first order, independent
+		// of registration order. An identical pattern merges handlers; an
+		// ambiguous equal-specificity conflict panics instead of silently
+		// shadowing (see insertRouteSorted).
+		app.insertRouteSorted(m, route)
 	}
 
 	// Execute onRoute hooks & change latestRoute if not adding mounted route
@@ -781,7 +795,9 @@ func (app *App) ensureAutoHeadRoutesLocked() {
 		// HEAD responses, so the copied GET handler stack can execute
 		// unchanged while still producing an empty body on the wire.
 
-		headStack = append(headStack, headRoute)
+		// Insert in specificity order so auto-generated HEAD routes obey the
+		// same precedence as explicitly registered ones.
+		headStack = slices.Insert(headStack, sortedInsertIndex(headStack, headRoute), headRoute)
 		existing[route.path] = struct{}{}
 		app.routesRefreshed = true
 		added = true
