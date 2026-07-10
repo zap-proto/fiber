@@ -6,7 +6,7 @@ import (
 	"math"
 	"slices"
 
-	"github.com/gofiber/fiber/v3"
+	"github.com/zap-proto/fiber/v3"
 	"github.com/valyala/bytebufferpool"
 )
 

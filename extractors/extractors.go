@@ -8,7 +8,7 @@ package extractors
 //
 // Example usage:
 //
-//	import "github.com/gofiber/fiber/v3/extractors"
+//	import "github.com/zap-proto/fiber/v3/extractors"
 //
 //	// Extract from Authorization header
 //	authExtractor := extractors.FromAuthHeader("Bearer")
@@ -29,7 +29,7 @@ import (
 	"errors"
 	"net/url"
 
-	"github.com/gofiber/fiber/v3"
+	"github.com/zap-proto/fiber/v3"
 	"github.com/gofiber/utils/v2"
 )
 

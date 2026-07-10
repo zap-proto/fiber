@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/fxamacker/cbor/v2"
-	"github.com/gofiber/fiber/v3/binder"
+	"github.com/zap-proto/fiber/v3/binder"
 	"github.com/gofiber/schema"
 	"github.com/shamaton/msgpack/v3"
 	"github.com/stretchr/testify/require"

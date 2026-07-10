@@ -19,7 +19,7 @@ import (
 	"time"
 
 	"github.com/fxamacker/cbor/v2"
-	"github.com/gofiber/fiber/v3/log"
+	"github.com/zap-proto/fiber/v3/log"
 
 	"github.com/gofiber/utils/v2"
 

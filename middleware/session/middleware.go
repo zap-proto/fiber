@@ -6,7 +6,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/gofiber/fiber/v3"
+	"github.com/zap-proto/fiber/v3"
 )
 
 // Middleware holds session data and configuration.

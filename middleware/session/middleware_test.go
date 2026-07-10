@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gofiber/fiber/v3"
-	"github.com/gofiber/fiber/v3/extractors"
+	"github.com/zap-proto/fiber/v3"
+	"github.com/zap-proto/fiber/v3/extractors"
 	"github.com/gofiber/utils/v2"
 	"github.com/stretchr/testify/require"
 	"github.com/valyala/fasthttp"

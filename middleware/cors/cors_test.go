@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gofiber/fiber/v3"
-	"github.com/gofiber/fiber/v3/log"
+	"github.com/zap-proto/fiber/v3"
+	"github.com/zap-proto/fiber/v3/log"
 	"github.com/stretchr/testify/require"
 	"github.com/valyala/fasthttp"
 )

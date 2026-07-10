@@ -4,8 +4,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/gofiber/fiber/v3"
-	"github.com/gofiber/fiber/v3/extractors"
+	"github.com/zap-proto/fiber/v3"
+	"github.com/zap-proto/fiber/v3/extractors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

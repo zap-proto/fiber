@@ -5,8 +5,8 @@ import (
 	"errors"
 	"runtime/debug"
 
-	"github.com/gofiber/fiber/v3"
-	"github.com/gofiber/fiber/v3/log"
+	"github.com/zap-proto/fiber/v3"
+	"github.com/zap-proto/fiber/v3/log"
 )
 
 // New enforces a timeout for each incoming request. It replaces the request's

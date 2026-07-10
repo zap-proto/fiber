@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/valyala/fasthttp"
 
-	"github.com/gofiber/fiber/v3"
-	"github.com/gofiber/fiber/v3/internal/storage/memory"
+	"github.com/zap-proto/fiber/v3"
+	"github.com/zap-proto/fiber/v3/internal/storage/memory"
 )
 
 type failingLimiterStorage struct {

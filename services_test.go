@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gofiber/fiber/v3/log"
+	"github.com/zap-proto/fiber/v3/log"
 	"github.com/stretchr/testify/require"
 )
 

@@ -3,7 +3,7 @@ package envvar
 import (
 	"os"
 
-	"github.com/gofiber/fiber/v3"
+	"github.com/zap-proto/fiber/v3"
 )
 
 const hAllow = fiber.MethodGet + ", " + fiber.MethodHead

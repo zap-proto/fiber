@@ -8,7 +8,7 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/gofiber/fiber/v3/binder"
+	"github.com/zap-proto/fiber/v3/binder"
 	"github.com/gofiber/schema"
 	"github.com/gofiber/utils/v2"
 	utilsbytes "github.com/gofiber/utils/v2/bytes"

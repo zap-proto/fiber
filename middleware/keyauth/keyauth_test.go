@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gofiber/fiber/v3"
-	"github.com/gofiber/fiber/v3/extractors"
+	"github.com/zap-proto/fiber/v3"
+	"github.com/zap-proto/fiber/v3/extractors"
 )
 
 const CorrectKey = "correct-token_123./~+"

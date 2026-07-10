@@ -22,9 +22,9 @@ import (
 	"github.com/valyala/bytebufferpool"
 	"github.com/valyala/fasthttp"
 
-	"github.com/gofiber/fiber/v3"
-	fiberlog "github.com/gofiber/fiber/v3/log"
-	"github.com/gofiber/fiber/v3/middleware/requestid"
+	"github.com/zap-proto/fiber/v3"
+	fiberlog "github.com/zap-proto/fiber/v3/log"
+	"github.com/zap-proto/fiber/v3/middleware/requestid"
 )
 
 const (

@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gofiber/fiber/v3"
-	"github.com/gofiber/fiber/v3/internal/memory"
+	"github.com/zap-proto/fiber/v3"
+	"github.com/zap-proto/fiber/v3/internal/memory"
 )
 
 // msgp -file="storage_manager.go" -o="storage_manager_msgp.go" -tests=true -unexported

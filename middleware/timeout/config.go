@@ -3,7 +3,7 @@ package timeout
 import (
 	"time"
 
-	"github.com/gofiber/fiber/v3"
+	"github.com/zap-proto/fiber/v3"
 )
 
 // Config holds the configuration for the timeout middleware.

@@ -1677,7 +1677,7 @@ func Benchmark_Router_Next_Default(b *testing.B) {
 	}
 }
 
-// go test -benchmem -run=^$ -bench ^Benchmark_Router_Next_Default_Parallel$ github.com/gofiber/fiber/v3 -count=1
+// go test -benchmem -run=^$ -bench ^Benchmark_Router_Next_Default_Parallel$ github.com/zap-proto/fiber/v3 -count=1
 func Benchmark_Router_Next_Default_Parallel(b *testing.B) {
 	app := New()
 	app.Get("/", func(_ Ctx) error {
@@ -1720,7 +1720,7 @@ func Benchmark_Router_Next_Default_Immutable(b *testing.B) {
 	}
 }
 
-// go test -benchmem -run=^$ -bench ^Benchmark_Router_Next_Default_Parallel_Immutable$ github.com/gofiber/fiber/v3 -count=1
+// go test -benchmem -run=^$ -bench ^Benchmark_Router_Next_Default_Parallel_Immutable$ github.com/zap-proto/fiber/v3 -count=1
 func Benchmark_Router_Next_Default_Parallel_Immutable(b *testing.B) {
 	app := New(Config{Immutable: true})
 	app.Get("/", func(_ Ctx) error {
