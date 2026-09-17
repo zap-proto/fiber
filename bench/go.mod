@@ -3,7 +3,7 @@
 // Run: cd bench && go test -bench=. -benchmem -count=6 .
 module github.com/zap-proto/fiber/bench
 
-go 1.25.0
+go 1.27.1
 
 require (
 	github.com/gofiber/fiber/v3 v3.2.0

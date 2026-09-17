@@ -1,6 +1,6 @@
 module github.com/zap-proto/fiber/v3
 
-go 1.25.0
+go 1.27.1
 
 require (
 	github.com/gofiber/schema v1.7.1
